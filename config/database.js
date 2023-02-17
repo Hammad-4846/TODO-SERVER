@@ -1,8 +1,7 @@
 import mongoose from "mongoose";
 
 export const connectDatabase = async () => {
-  const mongoUri =
-      "mongodb+srv://curious_4846:8FJ9hcvPzU2uasrU@cluster0.konyvse.mongodb.net/?retryWrites=true&w=majority";
+  const mongoUri = process.env.MONGO_URI
 
   try {
       const connect = await mongoose.connect(mongoUri, {
