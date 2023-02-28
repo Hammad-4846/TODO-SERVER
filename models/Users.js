@@ -3,10 +3,6 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
 
 const userSchema = new mongoose.Schema({
-  name: {
-    type: String,
-    required: true,
-  },
   email: {
     type: String,
     required: true,
@@ -18,30 +14,17 @@ const userSchema = new mongoose.Schema({
     minlength: [8, "Password must be atleast 8 characters long"],
     select: false,
   },
-  avatar: {
-    public_id: String,
-    url: String,
-  },
-
-  createdAt: {
-    type: Date,
-    default: Date.now,
-  },
 
   tasks: [
     {
-      title: String,
-      description: String,
+      title: { type: String, required: true },
+      link: { type: String, required: true },
+      iconUrl: { type: String },
+      note: String,
+      date: { type: Date, default: Date.now },
       isCompleted: Boolean,
-      createdAt: Date,
     },
   ],
-  verified: {
-    type: Boolean,
-    default: false,
-  },
-  otp: Number,
-  otp_expiry: Date,
 });
 
 userSchema.pre("save", async function (next) {
@@ -61,6 +44,4 @@ userSchema.methods.comparePassword = async function (password) {
   return await bcrypt.compare(password, this.password);
 };
 
-userSchema.index({ otp_expiry: 1 }, { expireAfterSeconds: 0 });
-
-export const User = mongoose.model("client", userSchema);
+export const User = mongoose.model("todoclient", userSchema);

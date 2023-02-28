@@ -1,46 +1,22 @@
 import { User } from "../models/Users.js";
-import { sendMail } from "../utils/sendMail.js";
 import { error, success } from "../utils/responseWrapper.js";
 import { sendToken } from "../utils/sendToken.js";
-import fs from "fs";
-import cloudinary from "cloudinary";
 
 export const register = async (req, res) => {
   try {
-    const { name, email, password } = req.body;
-    const avatar = req.files.avatar.tempFilePath;
+    const { email, password } = req.body;
 
     let user = await User.findOne({ email });
     if (user) {
       return res.send(error(404, "User is Already Registered"));
     }
 
-    const myCloud = await cloudinary.v2.uploader.upload(avatar, {
-      folder: "todoApp",
-    });
-
-    fs.rmSync("./tmp", { recursive: true });
-    const otp = Math.floor(Math.random() * 1000000);
-    await sendMail(email, "Verify Your Account", `Your OTP is ${otp}`);
-
     user = await User.create({
-      name,
       email,
       password,
-      avatar: {
-        public_id: myCloud.public_id,
-        url: myCloud.secure_url,
-      },
-      otp,
-      otp_expiry: new Date(Date.now() + process.env.OTP_EXPIRE * 60 * 1000),
     });
 
-    sendToken(
-      res,
-      user,
-      200,
-      "OTP send to your email, Please Verify you account"
-    );
+    sendToken(res, user, 200, "User is Created Succesfully ");
   } catch (e) {
     return res.send(e.message);
   }
@@ -49,18 +25,21 @@ export const register = async (req, res) => {
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
+    if (!email || !password) {
+      return res.send(error(404, "Please Enter all Fields"));
+    }
     const user = await User.findOne({ email }).select("+password");
 
-    if (!user || !password) {
-      return res.send(error(404, "Please Enter all Fields"));
+    if (!user) {
+      return res.send(error(404, "User Is Not Found"));
     }
 
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
       return res.send(error(404, "Invalid Email and Password"));
     }
-
-    sendToken(res, user, 200, "User Is Succesfully Login");
+    const localToken = user.getJWTToken();
+    sendToken(res, user, 200, "User Is Succesfully Login", localToken);
   } catch (e) {
     return res.send(e.message);
   }
@@ -78,64 +57,59 @@ export const logout = async (req, res) => {
   }
 };
 
-export const verify = async (req, res) => {
-  try {
-    const otp = Number(req.body.otp);
-    const user = await User.findById(req.user._id);
-    if (user.otp != otp || user.otp_expiry < Date.now()) {
-      return res.send(error(404, "Invalid OTP or has been Expired"));
-    }
-    user.verified = true;
-    user.otp = null;
-    user.otp_expiry = null;
-
-    await user.save();
-    sendToken(res, user, "Account Verified");
-  } catch (e) {}
-};
-
 export const addTask = async (req, res) => {
-  const { title, description } = req.body;
+  const { title, note, link, iconUrl } = req.body;
 
   const user = await User.findById(req.user._id);
 
   user.tasks.push({
     title,
-    description,
+    note,
+    link,
+    iconUrl,
     isCompleted: false,
     createdAt: new Date(Date.now()),
   });
 
   await user.save();
-  res.send(success(201, "Task Added Successfully"));
+  res.send(success(201, user));
 };
 
 export const removeTask = async (req, res) => {
-  const { taskId } = req.params;
+  const { taskId } = req.body;
+  console.log("This is Task Id", taskId);
 
   const user = await User.findById(req.user.id);
 
   user.tasks = user.tasks.filter(
-    (task) => task._id.toString() !== task._id.toString()
+    (task) => task._id.toString() !== taskId.toString()
   );
 
   await user.save();
-  res.send(success(201, "Task remove Successfully"));
+  res.send(success(201, user));
 };
 
 export const updateTask = async (req, res) => {
-  const { taskId } = req.params;
+  const { taskId } = req.body;
 
   const user = await User.findById(req.user.id);
 
-  user.task = user.tasks.find(
-    (task) => task._id.toString() === task._id.toString()
-  );
+  user.task = user.tasks.find((task) => task._id.toString() === taskId);
 
   user.task.isCompleted = !user.task.isCompleted;
   await user.save();
 
   res.send(success(201, "Task Updated Successfully"));
+};
+
+export const dragTask = async (req, res) => {
+  const { newTodo } = req.body;
+  const user = await User.findById(req.user.id);
+  user.tasks = newTodo;
+
+  await user.save();
+
+  return res.send(success(201, user));
 };
 
 export const getMyProfile = async (req, res) => {
@@ -156,19 +130,6 @@ export const updateProfile = async (req, res) => {
 
     if (name) {
       user.name = name;
-    }
-    if (avatar) {
-      await cloudinary.v2.uploader.destroy(user.avatar.public_id);
-      const myCloud = await cloudinary.v2.uploader.upload(avatar, {
-        folder: "todoApp",
-      });
-
-      fs.rmSync("../tmp", { recursive: true });
-
-      user.avatar = {
-        url: myCloud.secure_url,
-        public_id: myCloud.public_id,
-      };
     }
 
     await user.save();

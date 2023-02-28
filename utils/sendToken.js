@@ -1,13 +1,11 @@
 import { success } from "./responseWrapper.js";
-export const sendToken = async (res, user, statusCode, message) => {
+export const sendToken = async (res, user, statusCode, message,localToken) => {
   const token = user.getJWTToken();
   const userData = {
     _id: user._id,
     name: user.name,
     email: user.email,
-    avatar: user.avatar,
     tasks: user.tasks,
-    isVerified: user.verified,
   };
 
   res.cookie("token", token, {
@@ -18,5 +16,5 @@ export const sendToken = async (res, user, statusCode, message) => {
     ),
   });
 
-  res.send(success(statusCode, { user: userData, message }));
+  res.send(success(statusCode, { user: userData, message ,localToken}));
 };
